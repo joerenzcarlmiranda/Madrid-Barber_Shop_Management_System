@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Customers\Schemas;
 
 use App\Models\Customer;
 use App\Models\User;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -14,6 +15,19 @@ class CustomerForm
     {
         return $schema
             ->components([
+                FileUpload::make('image')
+                    ->label('Profile Photo')
+                    ->image()
+                    ->avatar()
+                    ->circleCropper()
+                    ->disk('public')
+                    ->directory('customers')
+                    ->visibility('public')
+                    ->imageEditor()
+                    ->imageEditorAspectRatios(['1:1'])
+                    ->openable()
+                    ->downloadable()
+                    ->columnSpanFull(),
                 TextInput::make('firstname')
                     ->required(),
                 TextInput::make('middlename')

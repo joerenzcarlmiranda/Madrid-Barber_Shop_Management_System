@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Service extends Model
 {
     protected $table = 'services';
+
     protected $guarded = [];
 
     public function appointments(): HasMany

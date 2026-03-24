@@ -42,10 +42,10 @@ class AppointmentsTable
                 TextColumn::make('status')
                     ->badge()
                     ->colors([
-                    'warning' => 'pending',
-                    'success' => 'confirmed',
-                    'primary' => 'completed',
-                    'danger' => 'cancelled',
+                        'warning' => 'pending',
+                        'success' => 'confirmed',
+                        'primary' => 'completed',
+                        'danger' => 'cancelled',
                     ])
                     ->sortable(),
                 TextColumn::make('created_at')

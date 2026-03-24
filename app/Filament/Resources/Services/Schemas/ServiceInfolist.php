@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Services\Schemas;
 
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -11,6 +12,12 @@ class ServiceInfolist
     {
         return $schema
             ->components([
+                ImageEntry::make('image')
+                    ->label('Service Image')
+                    ->disk('public')
+                    ->circular()
+                    ->size(140)
+                    ->columnSpanFull(),
                 TextEntry::make('name'),
                 TextEntry::make('description')
                     ->columnSpanFull(),

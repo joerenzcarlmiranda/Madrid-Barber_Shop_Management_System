@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\WalkIns\Pages;
 
+use App\Filament\Concerns\InteractsWithAvailabilityNotifications;
 use App\Filament\Resources\WalkIns\WalkInResource;
+use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\WalkIn;
 use Carbon\Carbon;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
@@ -14,7 +17,35 @@ use Illuminate\Validation\ValidationException;
 
 class EditWalkIn extends EditRecord
 {
+    use InteractsWithAvailabilityNotifications;
+
     protected static string $resource = WalkInResource::class;
+
+    protected function getAvailabilityNotificationId(): string
+    {
+        return 'walkin-availability';
+    }
+
+    protected function getAvailabilityNotificationTitle(): string
+    {
+        return 'Walk-in time unavailable';
+    }
+
+    protected function getCurrentAvailabilityStatus(): array
+    {
+        $service = filled($this->data['service_id'] ?? null)
+            ? Service::find($this->data['service_id'])
+            : null;
+
+        return Appointment::getBarberAvailabilityStatus(
+            $this->data['barber_id'] ?? null,
+            $this->data['visit_date'] ?? null,
+            $this->data['start_time'] ?? null,
+            $service,
+            null,
+            $this->record?->getKey(),
+        );
+    }
 
     protected function getHeaderActions(): array
     {
@@ -22,6 +53,12 @@ class EditWalkIn extends EditRecord
             ViewAction::make(),
             DeleteAction::make(),
         ];
+    }
+
+    protected function getSaveFormAction(): Action
+    {
+        return parent::getSaveFormAction()
+            ->disabled(fn (): bool => $this->hasInvalidAvailabilitySelection());
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
@@ -50,6 +87,21 @@ class EditWalkIn extends EditRecord
 
         $data['start_time'] = Carbon::parse($data['start_time'])->format('H:i:s');
         $data['end_time'] = Carbon::parse($calculatedEndTime)->format('H:i:s');
+
+        $availabilityStatus = Appointment::getBarberAvailabilityStatus(
+            $data['barber_id'] ?? null,
+            $data['visit_date'],
+            $data['start_time'],
+            $service,
+            null,
+            $this->record->getKey(),
+        );
+
+        if (($availabilityStatus['available'] ?? null) === false) {
+            throw ValidationException::withMessages([
+                'start_time' => $availabilityStatus['message'],
+            ]);
+        }
 
         if (WalkIn::hasBarberConflict($data['barber_id'] ?? null, $data['visit_date'], $data['start_time'], $data['end_time'], $this->record->getKey())) {
             throw ValidationException::withMessages([

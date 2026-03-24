@@ -2,12 +2,14 @@
 
 namespace App\Filament\Resources\WalkIns\Schemas;
 
+use App\Models\Appointment;
 use App\Models\Barber;
 use App\Models\Customer;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\WalkIn;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -16,6 +18,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\HtmlString;
 
 class WalkInForm
 {
@@ -43,7 +46,7 @@ class WalkInForm
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->afterStateUpdated(fn (Get $get, Set $set) => self::updateEndTime($get, $set))
+                    ->afterStateUpdated(fn (Get $get, Set $set, mixed $livewire) => self::refreshAvailabilityFeedback($get, $set, $livewire))
                     ->native(false)
                     ->required(),
                 Select::make('barber_id')
@@ -55,12 +58,16 @@ class WalkInForm
                     ->getOptionLabelFromRecordUsing(fn (Barber $record): string => $record->full_name)
                     ->searchable()
                     ->preload()
+                    ->live()
+                    ->afterStateUpdated(fn (mixed $livewire) => self::triggerAvailabilityNotification($livewire))
                     ->native(false)
                     ->label('Barber')
                     ->default(fn (): ?int => auth()->user()?->barber_id)
                     ->disabled(fn (): bool => auth()->user()?->isBarber() ?? false),
                 DatePicker::make('visit_date')
                     ->default(now()->toDateString())
+                    ->live()
+                    ->afterStateUpdated(fn (mixed $livewire) => self::triggerAvailabilityNotification($livewire))
                     ->required(),
                 TimePicker::make('arrival_time')
                     ->seconds(false)
@@ -69,12 +76,16 @@ class WalkInForm
                 TimePicker::make('start_time')
                     ->seconds(false)
                     ->live()
-                    ->afterStateUpdated(fn (Get $get, Set $set) => self::updateEndTime($get, $set)),
+                    ->afterStateUpdated(fn (Get $get, Set $set, mixed $livewire) => self::refreshAvailabilityFeedback($get, $set, $livewire)),
                 TimePicker::make('end_time')
                     ->seconds(false)
                     ->readOnly()
                     ->helperText('Automatically computed from the selected service duration once start time is set.')
                     ->dehydrated(),
+                Placeholder::make('availability_feedback')
+                    ->label('Availability')
+                    ->content(fn (Get $get) => self::getAvailabilityFeedback($get))
+                    ->columnSpanFull(),
                 Select::make('status')
                     ->options([
                         'waiting' => 'Waiting',
@@ -107,6 +118,12 @@ class WalkInForm
         $set('end_time', WalkIn::calculateEndTime($startTime, $service));
     }
 
+    protected static function refreshAvailabilityFeedback(Get $get, Set $set, mixed $livewire): void
+    {
+        self::updateEndTime($get, $set);
+        self::triggerAvailabilityNotification($livewire);
+    }
+
     protected static function restrictBarbersForCurrentUser(Builder $query): Builder
     {
         $user = auth()->user();
@@ -116,5 +133,37 @@ class WalkInForm
         }
 
         return $query;
+    }
+
+    protected static function getAvailabilityFeedback(Get $get): HtmlString
+    {
+        $serviceId = $get('service_id');
+        $service = filled($serviceId) ? Service::find($serviceId) : null;
+
+        $status = Appointment::getBarberAvailabilityStatus(
+            $get('barber_id'),
+            $get('visit_date'),
+            $get('start_time'),
+            $service,
+        );
+
+        $message = e($status['message'] ?? 'Select the service, barber, date, and start time to check availability.');
+
+        if (($status['available'] ?? null) === true) {
+            return new HtmlString("<span class='text-success-600 dark:text-success-400'>{$message}</span>");
+        }
+
+        if (($status['available'] ?? null) === false) {
+            return new HtmlString("<span class='text-danger-600 dark:text-danger-400'>{$message}</span>");
+        }
+
+        return new HtmlString("<span class='text-gray-500 dark:text-gray-400'>{$message}</span>");
+    }
+
+    protected static function triggerAvailabilityNotification(mixed $livewire): void
+    {
+        if (method_exists($livewire, 'notifyCurrentAvailabilityStatus')) {
+            $livewire->notifyCurrentAvailabilityStatus();
+        }
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Customers\Schemas;
 
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 
@@ -11,6 +12,12 @@ class CustomerInfolist
     {
         return $schema
             ->components([
+                ImageEntry::make('image')
+                    ->label('Profile Photo')
+                    ->disk('public')
+                    ->circular()
+                    ->size(140)
+                    ->columnSpanFull(),
                 TextEntry::make('firstname'),
                 TextEntry::make('middlename')
                     ->placeholder('-'),

@@ -47,11 +47,11 @@ class WalkIn extends Model
     public static function generateQueueNumber(string $visitDate): string
     {
         $date = Carbon::parse($visitDate);
-        $prefix = 'W-' . $date->format('Ymd') . '-';
+        $prefix = 'W-'.$date->format('Ymd').'-';
 
         $latestQueueNumber = static::query()
             ->whereDate('visit_date', $date->toDateString())
-            ->where('queue_number', 'like', $prefix . '%')
+            ->where('queue_number', 'like', $prefix.'%')
             ->latest('id')
             ->value('queue_number');
 
@@ -59,7 +59,7 @@ class WalkIn extends Model
             ? ((int) str($latestQueueNumber)->afterLast('-')) + 1
             : 1;
 
-        return $prefix . str_pad((string) $nextSequence, 3, '0', STR_PAD_LEFT);
+        return $prefix.str_pad((string) $nextSequence, 3, '0', STR_PAD_LEFT);
     }
 
     public static function calculateEndTime(?string $startTime, ?Service $service): ?string
@@ -85,14 +85,7 @@ class WalkIn extends Model
             ->where('barber_id', $barberId)
             ->whereDate('appointment_date', $visitDate)
             ->whereNotIn('status', ['cancelled'])
-            ->where(function (Builder $query) use ($normalizedStartTime, $normalizedEndTime) {
-                $query->whereBetween('start_time', [$normalizedStartTime, $normalizedEndTime])
-                    ->orWhereBetween('end_time', [$normalizedStartTime, $normalizedEndTime])
-                    ->orWhere(function (Builder $nestedQuery) use ($normalizedStartTime, $normalizedEndTime) {
-                        $nestedQuery->where('start_time', '<=', $normalizedStartTime)
-                            ->where('end_time', '>=', $normalizedEndTime);
-                    });
-            })
+            ->where(fn (Builder $query) => Appointment::applyTimeOverlapConstraint($query, $normalizedStartTime, $normalizedEndTime))
             ->exists();
 
         if ($appointmentConflict) {
@@ -101,17 +94,12 @@ class WalkIn extends Model
 
         return static::query()
             ->when($ignoreWalkInId, fn (Builder $query) => $query->whereKeyNot($ignoreWalkInId))
+            ->whereNotNull('start_time')
+            ->whereNotNull('end_time')
             ->where('barber_id', $barberId)
             ->whereDate('visit_date', $visitDate)
             ->whereNotIn('status', ['cancelled'])
-            ->where(function (Builder $query) use ($normalizedStartTime, $normalizedEndTime) {
-                $query->whereBetween('start_time', [$normalizedStartTime, $normalizedEndTime])
-                    ->orWhereBetween('end_time', [$normalizedStartTime, $normalizedEndTime])
-                    ->orWhere(function (Builder $nestedQuery) use ($normalizedStartTime, $normalizedEndTime) {
-                        $nestedQuery->where('start_time', '<=', $normalizedStartTime)
-                            ->where('end_time', '>=', $normalizedEndTime);
-                    });
-            })
+            ->where(fn (Builder $query) => Appointment::applyTimeOverlapConstraint($query, $normalizedStartTime, $normalizedEndTime))
             ->exists();
     }
 }

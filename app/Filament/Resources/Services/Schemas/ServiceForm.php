@@ -2,8 +2,9 @@
 
 namespace App\Filament\Resources\Services\Schemas;
 
-use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 
 class ServiceForm
@@ -12,6 +13,19 @@ class ServiceForm
     {
         return $schema
             ->components([
+                FileUpload::make('image')
+                    ->label('Service Image')
+                    ->image()
+                    ->disk('public')
+                    ->directory('services')
+                    ->visibility('public')
+                    ->imageEditor()
+                    ->imageEditorAspectRatios(['1:1', '4:3'])
+                    ->imagePreviewHeight('200')
+                    ->panelAspectRatio('1:1')
+                    ->openable()
+                    ->downloadable()
+                    ->columnSpanFull(),
                 TextInput::make('name')
                     ->required(),
                 Textarea::make('description')

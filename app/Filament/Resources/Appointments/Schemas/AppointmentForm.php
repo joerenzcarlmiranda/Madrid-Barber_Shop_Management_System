@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Service;
 use App\Models\User;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TimePicker;
@@ -15,6 +16,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\HtmlString;
 
 class AppointmentForm
 {
@@ -42,7 +44,7 @@ class AppointmentForm
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->afterStateUpdated(fn (Get $get, Set $set) => self::updateEndTime($get, $set))
+                    ->afterStateUpdated(fn (Get $get, Set $set, mixed $livewire, ?Appointment $record) => self::refreshAvailabilityFeedback($get, $set, $livewire, $record))
                     ->label('Service')
                     ->required()
                     ->native(false),
@@ -55,17 +57,21 @@ class AppointmentForm
                     ->getOptionLabelFromRecordUsing(fn (Barber $record): string => $record->full_name)
                     ->searchable()
                     ->preload()
+                    ->live()
+                    ->afterStateUpdated(fn (mixed $livewire) => self::triggerAvailabilityNotification($livewire))
                     ->label('Barber')
                     ->default(fn (): ?int => auth()->user()?->barber_id)
                     ->disabled(fn (): bool => auth()->user()?->isBarber() ?? false)
                     ->required()
                     ->native(false),
                 DatePicker::make('appointment_date')
+                    ->live()
+                    ->afterStateUpdated(fn (mixed $livewire) => self::triggerAvailabilityNotification($livewire))
                     ->required(),
                 TimePicker::make('start_time')
                     ->seconds(false)
                     ->live()
-                    ->afterStateUpdated(fn (Get $get, Set $set) => self::updateEndTime($get, $set))
+                    ->afterStateUpdated(fn (Get $get, Set $set, mixed $livewire, ?Appointment $record) => self::refreshAvailabilityFeedback($get, $set, $livewire, $record))
                     ->required(),
                 TimePicker::make('end_time')
                     ->seconds(false)
@@ -73,6 +79,10 @@ class AppointmentForm
                     ->helperText('Automatically computed from the selected service duration.')
                     ->dehydrated()
                     ->required(),
+                Placeholder::make('availability_feedback')
+                    ->label('Availability')
+                    ->content(fn (Get $get, ?Appointment $record) => self::getAvailabilityFeedback($get, $record))
+                    ->columnSpanFull(),
                 Select::make('status')
                     ->options([
                         'pending' => 'Pending',
@@ -105,6 +115,12 @@ class AppointmentForm
         $set('end_time', Appointment::calculateEndTime($startTime, $service));
     }
 
+    protected static function refreshAvailabilityFeedback(Get $get, Set $set, mixed $livewire, ?Appointment $record = null): void
+    {
+        self::updateEndTime($get, $set);
+        self::triggerAvailabilityNotification($livewire);
+    }
+
     protected static function restrictCustomersForCurrentUser(Builder $query): Builder
     {
         $user = auth()->user();
@@ -125,5 +141,38 @@ class AppointmentForm
         }
 
         return $query;
+    }
+
+    protected static function getAvailabilityFeedback(Get $get, ?Appointment $record = null): HtmlString
+    {
+        $serviceId = $get('service_id');
+        $service = filled($serviceId) ? Service::find($serviceId) : null;
+
+        $status = Appointment::getBarberAvailabilityStatus(
+            $get('barber_id'),
+            $get('appointment_date'),
+            $get('start_time'),
+            $service,
+            $record?->getKey(),
+        );
+
+        $message = e($status['message'] ?? 'Select the booking details to check availability.');
+
+        if (($status['available'] ?? null) === true) {
+            return new HtmlString("<span class='text-success-600 dark:text-success-400'>{$message}</span>");
+        }
+
+        if (($status['available'] ?? null) === false) {
+            return new HtmlString("<span class='text-danger-600 dark:text-danger-400'>{$message}</span>");
+        }
+
+        return new HtmlString("<span class='text-gray-500 dark:text-gray-400'>{$message}</span>");
+    }
+
+    protected static function triggerAvailabilityNotification(mixed $livewire): void
+    {
+        if (method_exists($livewire, 'notifyCurrentAvailabilityStatus')) {
+            $livewire->notifyCurrentAvailabilityStatus();
+        }
     }
 }
