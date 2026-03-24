@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Appointments\Pages;
 use App\Filament\Resources\Appointments\AppointmentResource;
 use App\Models\Appointment;
 use App\Models\Service;
+use App\Models\User;
 use Carbon\Carbon;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Validation\ValidationException;
@@ -15,6 +16,19 @@ class CreateAppointment extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $user = auth()->user();
+
+        if ($user instanceof User) {
+            if ($user->isCustomer()) {
+                $data['customer_id'] = $user->customer_id;
+                $data['status'] = 'pending';
+            }
+
+            if ($user->isBarber()) {
+                $data['barber_id'] = $user->barber_id;
+            }
+        }
+
         $service = Service::find($data['service_id']);
         $calculatedEndTime = Appointment::calculateEndTime($data['start_time'] ?? null, $service);
 

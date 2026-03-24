@@ -4,6 +4,7 @@ namespace App\Filament\Resources\WalkIns\Pages;
 
 use App\Filament\Resources\WalkIns\WalkInResource;
 use App\Models\Service;
+use App\Models\User;
 use App\Models\WalkIn;
 use Carbon\Carbon;
 use Filament\Actions\DeleteAction;
@@ -25,6 +26,12 @@ class EditWalkIn extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $user = auth()->user();
+
+        if ($user instanceof User && $user->isBarber()) {
+            $data['barber_id'] = $user->barber_id;
+        }
+
         $service = Service::find($data['service_id']);
 
         if (blank($data['start_time'] ?? null)) {

@@ -9,12 +9,14 @@ use App\Filament\Resources\WalkIns\Pages\ViewWalkIn;
 use App\Filament\Resources\WalkIns\Schemas\WalkInForm;
 use App\Filament\Resources\WalkIns\Schemas\WalkInInfolist;
 use App\Filament\Resources\WalkIns\Tables\WalkInsTable;
+use App\Models\User;
 use App\Models\WalkIn;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use UnitEnum;
 
 class WalkInResource extends Resource
@@ -38,6 +40,30 @@ class WalkInResource extends Resource
     public static function table(Table $table): Table
     {
         return WalkInsTable::configure($table);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+
+        if (! $user instanceof User) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($user->isAdmin()) {
+            return $query;
+        }
+
+        if ($user->isBarber()) {
+            return $query->where(function (Builder $query) use ($user): void {
+                $query
+                    ->where('barber_id', $user->barber_id)
+                    ->orWhereNull('barber_id');
+            });
+        }
+
+        return $query->whereRaw('1 = 0');
     }
 
     public static function getPages(): array

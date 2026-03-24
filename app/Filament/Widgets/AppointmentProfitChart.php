@@ -3,18 +3,26 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Appointment;
+use App\Models\WalkIn;
 use Carbon\Carbon;
 use Filament\Widgets\ChartWidget;
 
 class AppointmentProfitChart extends ChartWidget
 {
-    protected ?string $heading = 'Completed Appointment Profit';
+    protected static ?int $sort = 2;
 
-    protected ?string $description = 'Monthly revenue based on completed appointments.';
+    protected ?string $heading = 'Revenue Trend';
 
-    protected int | string | array $columnSpan = 'full';
+    protected ?string $description = 'Monthly revenue based on completed appointments and walk-ins.';
+
+    protected int|string|array $columnSpan = 'full';
 
     protected ?string $maxHeight = '320px';
+
+    public static function canView(): bool
+    {
+        return auth()->user()?->isAdmin() ?? false;
+    }
 
     protected function getData(): array
     {
@@ -34,12 +42,26 @@ class AppointmentProfitChart extends ChartWidget
                 ),
             );
 
+        $walkInProfitByMonth = WalkIn::query()
+            ->with('service:id,price')
+            ->where('status', 'completed')
+            ->whereDate('visit_date', '>=', $startDate->toDateString())
+            ->get()
+            ->groupBy(fn (WalkIn $walkIn) => Carbon::parse($walkIn->visit_date)->format('Y-m'))
+            ->map(
+                fn ($walkIns) => (float) $walkIns->sum(
+                    fn (WalkIn $walkIn) => (float) ($walkIn->service?->price ?? 0),
+                ),
+            );
+
         $labels = $months
             ->map(fn (Carbon $month) => $month->format('M Y'))
             ->all();
 
         $data = $months
-            ->map(fn (Carbon $month) => (float) ($profitByMonth[$month->format('Y-m')] ?? 0))
+            ->map(
+                fn (Carbon $month) => (float) (($profitByMonth[$month->format('Y-m')] ?? 0) + ($walkInProfitByMonth[$month->format('Y-m')] ?? 0)),
+            )
             ->all();
 
         return [

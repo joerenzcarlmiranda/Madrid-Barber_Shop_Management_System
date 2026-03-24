@@ -2,8 +2,13 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Widgets\AdminServiceDemandChart;
 use App\Filament\Widgets\AppointmentProfitChart;
+use App\Filament\Widgets\BarberPerformanceStats;
+use App\Filament\Widgets\BarberScheduleChart;
 use App\Filament\Widgets\BusinessStatsOverview;
+use App\Filament\Widgets\CustomerBookingStats;
+use App\Filament\Widgets\CustomerSpendingChart;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -31,7 +36,8 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
-            ->brandName('Madrid - Barber Shop Management System')
+            ->brandLogo(asset('images/barber.png'))
+            ->brandLogoHeight('3rem')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
@@ -41,6 +47,11 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 BusinessStatsOverview::class,
                 AppointmentProfitChart::class,
+                AdminServiceDemandChart::class,
+                BarberPerformanceStats::class,
+                BarberScheduleChart::class,
+                CustomerBookingStats::class,
+                CustomerSpendingChart::class,
             ])
             ->middleware([
                 EncryptCookies::class,

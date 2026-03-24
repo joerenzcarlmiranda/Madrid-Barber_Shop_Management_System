@@ -4,6 +4,7 @@ namespace App\Filament\Resources\WalkIns\Pages;
 
 use App\Filament\Resources\WalkIns\WalkInResource;
 use App\Models\Service;
+use App\Models\User;
 use App\Models\WalkIn;
 use Carbon\Carbon;
 use Filament\Resources\Pages\CreateRecord;
@@ -15,6 +16,12 @@ class CreateWalkIn extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $user = auth()->user();
+
+        if ($user instanceof User && $user->isBarber()) {
+            $data['barber_id'] = $user->barber_id;
+        }
+
         $service = Service::find($data['service_id']);
         $data['queue_number'] = WalkIn::generateQueueNumber($data['visit_date']);
 

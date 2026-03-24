@@ -5,6 +5,7 @@ namespace App\Filament\Resources\WalkIns\Schemas;
 use App\Models\Barber;
 use App\Models\Customer;
 use App\Models\Service;
+use App\Models\User;
 use App\Models\WalkIn;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -14,6 +15,7 @@ use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 
 class WalkInForm
 {
@@ -45,12 +47,18 @@ class WalkInForm
                     ->native(false)
                     ->required(),
                 Select::make('barber_id')
-                    ->relationship('barber', 'firstname')
+                    ->relationship(
+                        'barber',
+                        'firstname',
+                        modifyQueryUsing: fn (Builder $query) => self::restrictBarbersForCurrentUser($query),
+                    )
                     ->getOptionLabelFromRecordUsing(fn (Barber $record): string => $record->full_name)
                     ->searchable()
                     ->preload()
                     ->native(false)
-                    ->label('Barber'),
+                    ->label('Barber')
+                    ->default(fn (): ?int => auth()->user()?->barber_id)
+                    ->disabled(fn (): bool => auth()->user()?->isBarber() ?? false),
                 DatePicker::make('visit_date')
                     ->default(now()->toDateString())
                     ->required(),
@@ -97,5 +105,16 @@ class WalkInForm
         $service = Service::find($serviceId);
 
         $set('end_time', WalkIn::calculateEndTime($startTime, $service));
+    }
+
+    protected static function restrictBarbersForCurrentUser(Builder $query): Builder
+    {
+        $user = auth()->user();
+
+        if ($user instanceof User && $user->isBarber()) {
+            return $query->whereKey($user->barber_id);
+        }
+
+        return $query;
     }
 }
